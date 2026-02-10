@@ -1,4 +1,4 @@
-﻿"""
+"""
 探索性数据分析
 1. 读入与概览:    形状、前几行/后几行、数据类型、info、describe
 2. 质量检查:     缺失值、重复值、异常值、离群点
@@ -12,9 +12,11 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
+from typing import Union
 
-plt.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体为SimHei
-plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+sns.set_theme(style="whitegrid")
+plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
+plt.rcParams["axes.unicode_minus"] = False
 
 # 数据类，负责加载数据并提供基本的概览功能
 class Data:
@@ -50,14 +52,20 @@ class Data:
     def describe(self):
         return self.data.describe()
     
+    # 每一列的取值数量
+    def value_counts(self):
+        value_counts = {}
+        for col in self.data.columns:
+            value_counts[col] = self.data[col].value_counts()
+        return value_counts
+    
     def getallinfo(self):
-        print("Train shape:", train.shape())
+        print("数据集形状:")
+        print(self.data.shape)
         # 训练集的形状是(891, 12)
-        print("Test shape:", test.shape())
         # 测试集的形状是(418, 11)
 
-        print("Train columns:\n", train.columns())
-        print("Test columns:\n", test.columns())
+        print("数据集的列名:\n", self.data.columns)
         """
         一共12个列
         columns:
@@ -72,30 +80,23 @@ class Data:
             'Ticket',
             'Fare',
             'Cabin',
-            'Embarked']
+            'Embarked'
         """
 
-        print("Train head:\n", train.head())
-        # 训练集的前5行数据
-        print("Test head:\n", test.head())
-        # 测试集的前5行数据
+        print("数据集的前5行:\n", self.data.head())
+        # 前5行数据
 
-        print("Train tail:\n", train.tail())
-        # 训练集的后5行数据
-        print("Test tail:\n", test.tail())
-        # 测试集的后5行数据
+        print("数据集后5行:\n", self.data.tail())
 
-        print("Train info:")
-        print(train.info())
-        # 训练集的基本信息，包括数据类型和非空值数量
-        print("Test info:")
-        print(test.info())
-        # 测试集的基本信息，包括数据类型和非空值数量
+        print("数据集信息:")
+        print(self.data.info())
+        # 基本信息，包括数据类型和非空值数量
 
-        print("Train describe:\n", train.describe())
-        # 训练集的描述性统计信息
-        print("Test describe:\n", test.describe())
-        # 测试集的描述性统计信息
+        print("数据集描述性统计信息:\n", self.data.describe())
+        # 描述性统计信息
+
+        print("数据集每一列的取值数量:\n", self.data.value_counts())
+        # 每一列的取值数量
 
 
 # 质量检查类，负责检查数据的质量问题，如缺失值、重复值、异常值、离群点等
@@ -162,6 +163,42 @@ class QualityCheck:
         self.outlierCheck(data)
 
 
+"""
+12个列
+'PassengerId': 不需要plot 
+'Survived': 只有0和1两类，可以用计数图展示
+'Pclass': 只有1、2、3三类，可以用计数图展示
+'Name': 不需要plot
+'Sex': 只有male和female两类，可以用计数图展示
+'Age': 从0到74, 可以用直方图和箱线图展示
+'SibSp': 从0到8, 可以用计数图展示
+'Parch': 从0到6, 可以用计数图展示
+'Ticket': 不需要plot
+'Fare': 从0到512, 可以用直方图和箱线图展示
+'Cabin': 都是ABCDEFGT开头的字符串，可以用计数图展示
+'Embarked': 只有C、Q、S三类，可以用计数图展示
+"""
+# 计数图展示
+def plot_count(data:pd.DataFrame, column):
+    # 设置Seaborn的主题样式
+    
+    plt.figure(figsize=(8, 6))
+    ax = sns.countplot(x=column, data=data)
+    for container in ax.containers:
+        ax.bar_label(container, fmt="%d", padding=3)
+
+    # 美化细节
+    ax.set_title(f"{column} 频数分布", fontsize=14, weight="bold")
+    ax.set_xlabel(column)
+    ax.set_ylabel("数量")
+
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+
 if __name__ == "__main__":
     train_filepath = "datasets/train.csv"
     test_filepath = "datasets/test.csv"
@@ -178,4 +215,13 @@ if __name__ == "__main__":
     # quality_check = QualityCheck()
     # quality_check.allCheck(train.data)
     # quality_check.allCheck(test.data)
-    
+
+    # 目标变量分析
+    # 计数图
+    # plot_count(train.data, "Survived")
+    # plot_count(train.data, "Pclass")
+    # plot_count(train.data, "Sex")
+    # plot_count(train.data, "SibSp")
+    # plot_count(train.data, "Parch")
+    # plot_count(train.data, "Embarked")
+    # plot_count(train.data.copy()["Cabin"].str[0].fillna("Unknown").to_frame("Cabin"), "Cabin")

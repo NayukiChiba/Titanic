@@ -1,1 +1,4 @@
-ÿþ
+matplotlib
+numpy
+pandas
+seaborn

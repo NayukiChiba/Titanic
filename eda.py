@@ -8,15 +8,16 @@
 6. 特征之间关系:   相关性、共线性、交互关系
 7. 初步处理建议:   缺失填补/删除、异常处理、编码方式、特征工程
 """
-import pandas as pd
+
 import numpy as np
-from matplotlib import pyplot as plt
+import pandas as pd
 import seaborn as sns
-from typing import Union
+from matplotlib import pyplot as plt
 
 sns.set_theme(style="whitegrid")
 plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
 plt.rcParams["axes.unicode_minus"] = False
+
 
 # 数据类，负责加载数据并提供基本的概览功能
 class Data:
@@ -27,38 +28,38 @@ class Data:
     def load_data(self):
         self.data = pd.read_csv(self.file_path)
         return self.data
-    
+
     # 获取数据的形状
     def shape(self):
         return self.data.shape
-    
+
     # 获取数据的列名
     def columns(self):
         return self.data.columns
-    
+
     # 获取数据的前几行
     def head(self, n=5):
         return self.data.head(n)
-    
+
     # 获取数据的后几行
     def tail(self, n=5):
         return self.data.tail(n)
-    
+
     # 获取数据的基本类型
     def info(self):
         return self.data.info()
-    
+
     # 获取数据的描述性统计信息
     def describe(self):
         return self.data.describe()
-    
+
     # 每一列的取值数量
     def value_counts(self):
         value_counts = {}
         for col in self.data.columns:
             value_counts[col] = self.data[col].value_counts()
         return value_counts
-    
+
     def getallinfo(self):
         print("数据集形状:")
         print(self.data.shape)
@@ -112,10 +113,9 @@ class QualityCheck:
             print(missing_values[missing_values > 0])
         else:
             print("没有缺失值")
-        
+
         # 返回缺失值的列和数量
         return missing_values[missing_values > 0]
-        
 
     # 检查重复值
     def duplicateCheck(self, data):
@@ -139,23 +139,24 @@ class QualityCheck:
             upper = Q3 + 1.5 * IQR
             # 异常值判断: 小于lower或大于upper的值被认为是异常值
             IQRoutliers = (data[col] < lower) | (data[col] > upper)
-        
+
             # 使用Z-score方法筛选数值列的异常值
             # Z-score方法也只对数值列有效，因此需要先选择数值列
             z = (data[col] - data[col].mean()) / data[col].std()
             zscoreoutliers = (z < -3) | (z > 3)
-        
-            results.append({
-                "column": col,
-                "IQR异常值": int(IQRoutliers.sum()),
-                "Z-score异常值": int(zscoreoutliers.sum()),
-                "IQR上界": upper,
-                "IQR下界": lower,
-            })
+
+            results.append(
+                {
+                    "column": col,
+                    "IQR异常值": int(IQRoutliers.sum()),
+                    "Z-score异常值": int(zscoreoutliers.sum()),
+                    "IQR上界": upper,
+                    "IQR下界": lower,
+                }
+            )
         print("数值列的异常值检查结果: ")
         print(pd.DataFrame(results))
         return pd.DataFrame(results)
-
 
     def allCheck(self, data):
         self.missingCheck(data)
@@ -178,10 +179,12 @@ class QualityCheck:
 'Cabin': 都是ABCDEFGT开头的字符串，可以用计数图展示
 'Embarked': 只有C、Q、S三类，可以用计数图展示
 """
+
+
 # 计数图展示
-def plot_count(data:pd.DataFrame, column):
+def plot_count(data: pd.DataFrame, column):
     # 设置Seaborn的主题样式
-    
+
     plt.figure(figsize=(8, 6))
     ax = sns.countplot(x=column, data=data)
     for container in ax.containers:
@@ -192,24 +195,33 @@ def plot_count(data:pd.DataFrame, column):
     ax.set_xlabel(column)
     ax.set_ylabel("数量")
 
-
     plt.tight_layout()
     plt.show()
 
 
+# 直方图展示
+def plot_hist(data: pd.DataFrame, column, bins=30):
+    plt.figure(figsize=(8, 6))
+    ax = sns.histplot(data[column].dropna(), bins=bins, kde=True)
+    for container in ax.containers:
+        ax.bar_label(container, fmt="%d", padding=2)
+    plt.title(f"{column} 分布", fontsize=14, weight="bold")
+    plt.xlabel(column)
+    plt.ylabel("频数")
+    plt.tight_layout()
+    plt.show()
 
 
 if __name__ == "__main__":
     train_filepath = "datasets/train.csv"
     test_filepath = "datasets/test.csv"
-    
+
     train = Data(train_filepath)
     test = Data(test_filepath)
 
     # 获取数据的基本信息
     train.getallinfo()
     # test.getallinfo()
-
 
     # 质量检查
     # quality_check = QualityCheck()
@@ -225,3 +237,7 @@ if __name__ == "__main__":
     # plot_count(train.data, "Parch")
     # plot_count(train.data, "Embarked")
     # plot_count(train.data.copy()["Cabin"].str[0].fillna("Unknown").to_frame("Cabin"), "Cabin")
+
+    # 直方图
+    plot_hist(train.data, "Age", bins=20)
+    plot_hist(train.data, "Fare", bins=30)

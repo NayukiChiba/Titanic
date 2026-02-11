@@ -99,50 +99,36 @@ class Data:
         print("数据集每一列的取值数量:\n", self.data.value_counts())
         # 每一列的取值数量
 
-
-# 质量检查类，负责检查数据的质量问题，如缺失值、重复值、异常值、离群点等
-class QualityCheck:
-    def __init__(self):
-        pass
-
     # 检查缺失值
-    def missingCheck(self, data):
-        missing_values = data.isnull().sum()
+    def missingCheck(self):
+        missing_values = self.data.isnull().sum()
         if missing_values.sum() > 0:
             print("有缺失值! 缺失的列和数量为: ")
             print(missing_values[missing_values > 0])
         else:
             print("没有缺失值")
-
-        # 返回缺失值的列和数量
         return missing_values[missing_values > 0]
 
     # 检查重复值
-    def duplicateCheck(self, data):
-        duplicate_count = data.duplicated().sum()
+    def duplicateCheck(self):
+        duplicate_count = self.data.duplicated().sum()
         print("Duplicate values:", duplicate_count)
+        return duplicate_count
 
     # 检查异常值
-    def outlierCheck(self, data):
-        # 使用IQR方法筛选数值列的异常值
-        # IQR方法只对数值列有效，因此需要先选择数值列
-        numeric_cols = data.select_dtypes(include=[np.number]).columns
+    def outlierCheck(self):
+        numeric_cols = self.data.select_dtypes(include=[np.number]).columns
         results = []
 
         for col in numeric_cols:
-            # 四分位数
-            Q1 = data[col].quantile(0.25)
-            Q3 = data[col].quantile(0.75)
-            # IQR
+            Q1 = self.data[col].quantile(0.25)
+            Q3 = self.data[col].quantile(0.75)
             IQR = Q3 - Q1
             lower = Q1 - 1.5 * IQR
             upper = Q3 + 1.5 * IQR
-            # 异常值判断: 小于lower或大于upper的值被认为是异常值
-            IQRoutliers = (data[col] < lower) | (data[col] > upper)
+            IQRoutliers = (self.data[col] < lower) | (self.data[col] > upper)
 
-            # 使用Z-score方法筛选数值列的异常值
-            # Z-score方法也只对数值列有效，因此需要先选择数值列
-            z = (data[col] - data[col].mean()) / data[col].std()
+            z = (self.data[col] - self.data[col].mean()) / self.data[col].std()
             zscoreoutliers = (z < -3) | (z > 3)
 
             results.append(
@@ -154,14 +140,53 @@ class QualityCheck:
                     "IQR下界": lower,
                 }
             )
-        print("数值列的异常值检查结果: ")
-        print(pd.DataFrame(results))
-        return pd.DataFrame(results)
 
-    def allCheck(self, data):
-        self.missingCheck(data)
-        self.duplicateCheck(data)
-        self.outlierCheck(data)
+        print("数值列的异常值检查结果: ")
+        report = pd.DataFrame(results)
+        print(report)
+        return report
+
+    # 一次性跑完所有质量检查
+    def allCheck(self):
+        self.missingCheck()
+        self.duplicateCheck()
+        self.outlierCheck()
+
+    def non_outlier(self, col, method="IQR"):
+        if method == "IQR":
+            Q1 = self.data[col].quantile(0.25)
+            Q3 = self.data[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower = Q1 - 1.5 * IQR
+            upper = Q3 + 1.5 * IQR
+            return self.data[(self.data[col] >= lower) & (self.data[col] <= upper)]
+        elif method == "Z-score":
+            z = (self.data[col] - self.data[col].mean()) / self.data[col].std()
+            return self.data[(z >= -3) & (z <= 3)]
+        else:
+            raise ValueError("模式错误, 请选择 'IQR' 或 'Z-score'")
+
+    def summary(self):
+        summary_dict = {}
+        for col in self.data.columns:
+            summary_dict[col] = {
+                "数据类型": self.data[col].dtype,
+                "非空值数量": self.data[col].notnull().sum(),
+                "缺失值数量": self.data[col].isnull().sum(),
+                "唯一值数量": self.data[col].nunique(),
+            }
+        return pd.DataFrame(summary_dict).T
+
+    def quality_report(self):
+        missing = self.missingCheck()
+        duplicates = self.duplicateCheck()
+        outliers = self.outlierCheck()
+        report = {
+            "缺失值": missing,
+            "重复值数量": duplicates,
+            "异常值": outliers,
+        }
+        return report
 
 
 """
@@ -181,35 +206,40 @@ class QualityCheck:
 """
 
 
-# 计数图展示
-def plot_count(data: pd.DataFrame, column):
-    # 设置Seaborn的主题样式
+class Plotter:
+    def __init__(self, data: Data):
+        # 保存 Data 对象与原始 DataFrame
+        self.source = data
+        self.data = data.data
 
-    plt.figure(figsize=(8, 6))
-    ax = sns.countplot(x=column, data=data)
-    for container in ax.containers:
-        ax.bar_label(container, fmt="%d", padding=3)
+    def hist(self, col, drop_outliers=False):
+        plot_data = self.data
+        if drop_outliers:
+            plot_data = self.source.non_outlier(col)
+        plt.figure(figsize=(8, 6))
+        ax = sns.histplot(plot_data[col].dropna(), bins=30, kde=True)
+        for container in ax.containers:
+            ax.bar_label(container, fmt="%d", padding=2)
+        plt.title(f"{col} 分布", fontsize=14, weight="bold")
+        plt.xlabel(col)
+        plt.ylabel("频数")
+        plt.tight_layout()
+        plt.show()
 
-    # 美化细节
-    ax.set_title(f"{column} 频数分布", fontsize=14, weight="bold")
-    ax.set_xlabel(column)
-    ax.set_ylabel("数量")
+    def count(self, col, data=None):
+        plt.figure(figsize=(8, 6))
+        plot_data = data if data is not None else self.data
+        ax = sns.countplot(x=col, data=plot_data)
+        for container in ax.containers:
+            ax.bar_label(container, fmt="%d", padding=3)
 
-    plt.tight_layout()
-    plt.show()
+        # 美化细节
+        ax.set_title(f"{col} 频数分布", fontsize=14, weight="bold")
+        ax.set_xlabel(col)
+        ax.set_ylabel("数量")
 
-
-# 直方图展示
-def plot_hist(data: pd.DataFrame, column, bins=30):
-    plt.figure(figsize=(8, 6))
-    ax = sns.histplot(data[column].dropna(), bins=bins, kde=True)
-    for container in ax.containers:
-        ax.bar_label(container, fmt="%d", padding=2)
-    plt.title(f"{column} 分布", fontsize=14, weight="bold")
-    plt.xlabel(column)
-    plt.ylabel("频数")
-    plt.tight_layout()
-    plt.show()
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -223,21 +253,23 @@ if __name__ == "__main__":
     train.getallinfo()
     # test.getallinfo()
 
-    # 质量检查
-    # quality_check = QualityCheck()
-    # quality_check.allCheck(train.data)
-    # quality_check.allCheck(test.data)
+    # 质量检查（已归属到 Data 类）
+    train.allCheck()
+    # test.allCheck()
 
-    # 目标变量分析
-    # 计数图
-    # plot_count(train.data, "Survived")
-    # plot_count(train.data, "Pclass")
-    # plot_count(train.data, "Sex")
-    # plot_count(train.data, "SibSp")
-    # plot_count(train.data, "Parch")
-    # plot_count(train.data, "Embarked")
-    # plot_count(train.data.copy()["Cabin"].str[0].fillna("Unknown").to_frame("Cabin"), "Cabin")
+    # 使用 Plotter 进行可视化
+    plotter = Plotter(train)
+    plotter.count("Survived")
+    plotter.count("Pclass")
+    plotter.count("Sex")
+    plotter.count("SibSp")
+    plotter.count("Parch")
+    plotter.count("Embarked")
 
-    # 直方图
-    plot_hist(train.data, "Age", bins=20)
-    plot_hist(train.data, "Fare", bins=30)
+    # Cabin 首字母计数示例
+    train.data["Cabin"] = train.data["Cabin"].str[0].fillna("Unknown")
+    plotter.count("Cabin")
+
+    # 直方图（可选剔除异常值）
+    plotter.hist("Age", drop_outliers=True)
+    plotter.hist("Fare", drop_outliers=True)

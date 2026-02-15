@@ -1,9 +1,9 @@
 """
 探索性数据分析
-1. 读入与概览:    形状、前几行/后几行、数据类型、info、describe
-2. 质量检查:     缺失值、重复值、异常值、离群点
-3. 单变量分析:    数值列分布（直方图/箱线图）、类别列分布（计数图）
-4. 目标变量分析:   目标分布、类别不平衡情况
+1. 读入与概览(已完成):    形状、前几行/后几行、数据类型、info、describe
+2. 质量检查(已完成):     缺失值、重复值、异常值、离群点
+3. 单变量分析(已完成):    数值列分布（直方图/箱线图）、类别列分布（计数图）
+4. 目标变量分析(已完成):   目标分布、类别不平衡情况
 5. 特征与目标关系: 类别-目标均值、数值-目标箱线/分布对比
 6. 特征之间关系:   相关性、共线性、交互关系
 7. 初步处理建议:   缺失填补/删除、异常处理、编码方式、特征工程
@@ -242,6 +242,61 @@ class Plotter:
         plt.show()
 
 
+# 目标变量分析, 看看有没有问题
+def target_analysis(Data: Data, target_col="Survived"):
+    # 获取targe
+    data = Data.data
+    target = data[target_col]
+
+    # 看看有没有缺失
+    missing = target.isnull().sum()
+    if missing > 0:
+        print(f"目标变量 {target_col} 有 {missing} 个缺失值")
+    else:
+        print(f"目标变量 {target_col} 没有缺失值")
+
+    # 看看target有哪些类型
+    counts = target.value_counts().sort_index()
+    # 看看类别的比例
+    percent = (counts / counts.sum()) * 100
+    report = pd.DataFrame({target_col: counts, "百分比": percent})
+    print(f"目标变量 {target_col} 的分布:\n{report}")
+
+    # 不平衡的程度
+    # 如果类别大于1
+    if len(counts) > 1:
+        imbalance_ratio = counts.max() / counts.min()
+        print(f"类别不平衡程度 (最大类别数量 / 最小类别数量): {imbalance_ratio:.2f}")
+
+        # 最大的类别占比
+        marjority_class_percentage = percent.max()
+        print(f"最大的类别占比: {marjority_class_percentage:.2f}%")
+
+        # 熵
+        p = counts / counts.sum()
+        entropy = -np.sum(p * np.log2(p))
+        print(f"目标变量的熵: {entropy:.4f}")
+    else:
+        print("目标变量只有一个类别, 无法计算不平衡程度和熵")
+
+    # 可视化目标变量分布
+    plt.figure(figsize=(8, 6))
+    order = counts.index.tolist()
+    ax = sns.countplot(x=target_col, data=data, order=order)
+    for i, p in enumerate(ax.patches):
+        ax.text(
+            p.get_x() + p.get_width() / 2,
+            p.get_height() + 5,
+            f"{counts[i]} ({percent[i]:.1f}%)",
+            ha="center",
+        )
+    ax.set_title(f"{target_col} 分布", fontsize=14, weight="bold")
+    ax.set_xlabel(target_col)
+    ax.set_ylabel("数量")
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     train_filepath = "datasets/train.csv"
     test_filepath = "datasets/test.csv"
@@ -249,27 +304,30 @@ if __name__ == "__main__":
     train = Data(train_filepath)
     test = Data(test_filepath)
 
-    # 获取数据的基本信息
-    train.getallinfo()
-    # test.getallinfo()
+    # # 获取数据的基本信息
+    # train.getallinfo()
+    # # test.getallinfo()
 
-    # 质量检查（已归属到 Data 类）
-    train.allCheck()
+    # # 质量检查（已归属到 Data 类）
+    # train.allCheck()
     # test.allCheck()
 
     # 使用 Plotter 进行可视化
-    plotter = Plotter(train)
-    plotter.count("Survived")
-    plotter.count("Pclass")
-    plotter.count("Sex")
-    plotter.count("SibSp")
-    plotter.count("Parch")
-    plotter.count("Embarked")
+    # plotter = Plotter(train)
+    # plotter.count("Survived")
+    # plotter.count("Pclass")
+    # plotter.count("Sex")
+    # plotter.count("SibSp")
+    # plotter.count("Parch")
+    # plotter.count("Embarked")
 
-    # Cabin 首字母计数示例
-    train.data["Cabin"] = train.data["Cabin"].str[0].fillna("Unknown")
-    plotter.count("Cabin")
+    # # Cabin 首字母计数示例
+    # train.data["Cabin"] = train.data["Cabin"].str[0].fillna("Unknown")
+    # plotter.count("Cabin")
 
-    # 直方图（可选剔除异常值）
-    plotter.hist("Age", drop_outliers=True)
-    plotter.hist("Fare", drop_outliers=True)
+    # # 直方图（可选剔除异常值）
+    # plotter.hist("Age", drop_outliers=True)
+    # plotter.hist("Fare", drop_outliers=True)
+
+    # 目标变量分析
+    target_analysis(train, target_col="Survived")

@@ -4,7 +4,7 @@
 2. 质量检查(已完成):     缺失值、重复值、异常值、离群点
 3. 单变量分析(已完成):    数值列分布（直方图/箱线图）、类别列分布（计数图）
 4. 目标变量分析(已完成):   目标分布、类别不平衡情况
-5. 特征与目标关系: 类别-目标均值、数值-目标箱线/分布对比
+5. 特征与目标关系(已完成): 类别-目标均值、数值-目标箱线/分布对比
 6. 特征之间关系:   相关性、共线性、交互关系
 7. 初步处理建议:   缺失填补/删除、异常处理、编码方式、特征工程
 """
@@ -297,6 +297,128 @@ def target_analysis(Data: Data, target_col="Survived"):
     plt.show()
 
 
+def featureTargetRelations(
+    Data: Data,
+    targetCol="Survived",
+    catCols=None,
+    numCols=None,
+    missing="keep",  # "keep"=把缺失当成一类; "drop"=只在当前分析里丢掉缺失
+):
+    """
+    分析特征与目标变量的关系
+    - 类别特征: 计算每个类别的目标均值, 可视化柱状图
+    - 数值特征: 计算数值特征在不同目标类别下的分布, 可视化箱线图或小提琴图
+    Args:
+    - dataFrame: 包含特征和目标的 DataFrame
+    - targetCol: 目标变量列名
+    - catCols: 类别特征列名列表, 如果 None 则自动识别
+    - numCols: 数值特征列名列表, 如果 None 则自动识别
+    - maxCat: 类别特征的最大类别数, 超过则不分析
+    - missing: 处理缺失值的方式, "keep" 或 "drop"
+    """
+    # 目标缺失直接删除, 因为无法分析
+    data = Data.data
+    data = data[data[targetCol].notnull()].copy()
+
+    # 自动识别类别和数值特征
+    if catCols is None:
+        catCols = (
+            data.select_dtypes(exclude=[np.number])
+            .columns.drop(targetCol, errors="ignore")
+            .tolist()
+        )
+    if numCols is None:
+        numCols = (
+            data.select_dtypes(include=[np.number])
+            .columns.drop(targetCol, errors="ignore")
+            .tolist()
+        )
+
+    # 分析类别特征
+    for col in catCols:
+        categorySeries = data[col].copy()
+
+        # 处理缺失值
+        if missing == "keep":
+            # 把缺失值当成一个类别 "Missing"
+            categorySeries = categorySeries.fillna("Missing")
+            # 创建一个新的 DataFrame 用于分析和可视化
+            categoryFrame = data.copy()
+            # 替换原来的列为处理后的类别列
+            categoryFrame[col] = categorySeries
+        elif missing == "drop":
+            # 只在当前分析里丢掉缺失值
+            nonMissingMask = categorySeries.notna()
+            # 更新类别列和分析用的 DataFrame
+            categorySeries = categorySeries[nonMissingMask]
+            # 创建一个新的 DataFrame 用于分析和可视化, 只包含非缺失值的行
+            categoryFrame = data.loc[nonMissingMask].copy()
+            # 替换原来的列为处理后的类别列
+            categoryFrame[col] = categorySeries
+        else:
+            raise ValueError("missing 参数必须是 'keep' 或 'drop'")
+
+        # 查看每一个列别的目标均值
+        print(f"分析类别特征 '{col}' 与目标变量 '{targetCol}' 的关系:")
+        categorySurvivalRate = (
+            categoryFrame.groupby(col)[targetCol].mean().sort_values(ascending=False)
+        )
+        print(categorySurvivalRate)
+
+        # 交叉表
+        crosstab = pd.crosstab(
+            categoryFrame[col],
+            categoryFrame[targetCol],
+            margins=True,
+            normalize="index",
+        )
+        print(
+            f"类别特征 '{col}' 与目标变量 '{targetCol}' 的交叉表 (行百分比):\n{crosstab}"
+        )
+
+        # 可视化
+        plt.figure(figsize=(7, 4))
+        sns.barplot(x=categorySurvivalRate.index, y=categorySurvivalRate.values)
+        plt.title(f"{col} vs {targetCol} (mean)")
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        plt.show()
+
+    # 分析数值特征
+    for numCol in numCols:
+        # 数值特征缺失处理：keep -> 保留缺失（统计里自然忽略）
+        # drop -> 只对该列缺失行做删除
+        numericFrame = data if missing == "keep" else data[data[numCol].notna()].copy()
+
+        # 1) 不同目标类别下的描述统计
+        print(f"\n[{numCol}] 不同目标类别的统计")
+        groupedStats = numericFrame.groupby(targetCol)[numCol].describe()[
+            ["mean", "std", "min", "max"]
+        ]
+        print(groupedStats)
+
+        # 2) 箱线图：看中位数、离散程度、异常值差异
+        plt.figure(figsize=(8, 4))
+        sns.boxplot(x=targetCol, y=numCol, data=numericFrame)
+        plt.title(f"{numCol} by {targetCol}")
+        plt.tight_layout()
+        plt.show()
+
+        # 3) 分布对比：直方图+KDE，看两类是否明显分开
+        plt.figure(figsize=(8, 4))
+        sns.histplot(
+            data=numericFrame,
+            x=numCol,
+            hue=targetCol,
+            kde=True,
+            stat="density",
+            common_norm=False,
+        )
+        plt.title(f"{numCol} distribution by {targetCol}")
+        plt.tight_layout()
+        plt.show()
+
+
 if __name__ == "__main__":
     train_filepath = "datasets/train.csv"
     test_filepath = "datasets/test.csv"
@@ -330,4 +452,13 @@ if __name__ == "__main__":
     # plotter.hist("Fare", drop_outliers=True)
 
     # 目标变量分析
-    target_analysis(train, target_col="Survived")
+    # target_analysis(train, target_col="Survived")
+
+    # 特征与目标关系分析
+    featureTargetRelations(
+        train,
+        targetCol="Survived",
+        missing="keep",
+        catCols=["Pclass", "Sex", "SibSp", "Parch", "Embarked"],
+        numCols=["Age", "Fare"],
+    )

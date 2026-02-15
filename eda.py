@@ -579,10 +579,20 @@ def generatePreprocessSuggestions(dataObj: Data, targetCol: str = "Survived") ->
     print("  - 考虑对 Age 进行分箱处理")
 
 
-def main(filename: str) -> None:
+def main(filename: str, targetCol: str = "Survived") -> None:
+    """
+    执行完整的 EDA 流程
+
+    Args:
+        filename: 数据文件名（位于 datasets 目录下）
+        targetCol: 目标变量列名，默认为 "Survived"
+    """
     filepath = os.path.join("datasets", filename)
 
     data = Data(filepath)
+
+    # 检查目标列是否存在
+    hasTarget = targetCol in data.data.columns
 
     print("数据集基本信息:")
     data.getAllInfo()
@@ -592,7 +602,12 @@ def main(filename: str) -> None:
 
     print("\n可视化:")
     plotter = Plotter(data)
-    plotter.plotCount("Survived")
+
+    # 目标变量可视化（仅当目标列存在时）
+    if hasTarget:
+        plotter.plotCount(targetCol)
+
+    # 其他特征可视化
     plotter.plotCount("Pclass")
     plotter.plotCount("Sex")
     plotter.plotCount("SibSp")
@@ -606,23 +621,33 @@ def main(filename: str) -> None:
     plotter.plotHist("Age", dropOutliers=True)
     plotter.plotHist("Fare", dropOutliers=True)
 
-    # 目标变量分析
-    analyzeTarget(data, targetCol="Survived")
+    # 以下分析仅当目标列存在时执行
+    if hasTarget:
+        # 目标变量分析
+        analyzeTarget(data, targetCol=targetCol)
 
-    # 特征与目标关系分析
-    analyzeFeatureTarget(
-        data,
-        targetCol="Survived",
-        missing="keep",
-        catCols=["Pclass", "Sex", "SibSp", "Parch", "Embarked"],
-        numCols=["Age", "Fare"],
-    )
+        # 特征与目标关系分析
+        analyzeFeatureTarget(
+            data,
+            targetCol=targetCol,
+            missing="keep",
+            catCols=["Pclass", "Sex", "SibSp", "Parch", "Embarked"],
+            numCols=["Age", "Fare"],
+        )
 
-    # 特征之间关系分析
-    analyzeFeatureRelations(data, targetCol="Survived")
+        # 特征之间关系分析
+        analyzeFeatureRelations(data, targetCol=targetCol)
 
-    # 默认执行：生成预处理建议
-    generatePreprocessSuggestions(data, targetCol="Survived")
+        # 生成预处理建议
+        generatePreprocessSuggestions(data, targetCol=targetCol)
+    else:
+        print(f"\n⚠️ 目标列 '{targetCol}' 不存在，跳过目标相关分析")
+
+        # 仅执行特征之间关系分析（无需目标列）
+        analyzeFeatureRelations(data, targetCol=None)
+
+        # 生成预处理建议（无目标列版本）
+        generatePreprocessSuggestions(data, targetCol=targetCol)
 
 
 if __name__ == "__main__":

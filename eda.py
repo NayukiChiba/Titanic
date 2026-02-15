@@ -505,11 +505,14 @@ def generatePreprocessSuggestions(dataObj: Data, targetCol: str = "Survived") ->
             missingRatio = missingCols[col] / len(data) * 100
             dtype = data[col].dtype
 
+            # 使用 str(dtype) 或 .name 属性进行比较，确保兼容 pandas dtype 对象
+            dtypeName = str(dtype)
+
             if missingRatio > 50:
                 print(
                     f"  - {col}: 缺失率 {missingRatio:.1f}%，建议删除该列或使用指示变量"
                 )
-            elif dtype in ["object", "string", "category"] or str(dtype).startswith(
+            elif dtypeName in ["object", "string", "category"] or dtypeName.startswith(
                 "string"
             ):
                 print(
@@ -614,8 +617,9 @@ def main(filename: str, targetCol: str = "Survived") -> None:
     plotter.plotCount("Parch")
     plotter.plotCount("Embarked")
 
-    data.data["Cabin"] = data.data["Cabin"].str[0].fillna("Unknown")
-    plotter.plotCount("Cabin")
+    # Cabin 首字母可视化（使用副本，避免修改原数据）
+    cabinFirstLetter = data.data["Cabin"].str[0].fillna("Unknown")
+    plotter.plotCount("Cabin", data=pd.DataFrame({"Cabin": cabinFirstLetter}))
 
     # 直方图(可选择是否剔除异常值)
     plotter.plotHist("Age", dropOutliers=True)

@@ -358,7 +358,9 @@ def analyzeFeatureTarget(
         # 可视化
         plt.figure(figsize=(7, 4))
         sns.barplot(x=categorySurvivalRate.index, y=categorySurvivalRate.values)
-        plt.title(f"{col} vs {targetCol} (mean)")
+        plt.title(f"{col} 各类别的 {targetCol} 均值", fontsize=14, weight="bold")
+        plt.xlabel(col)
+        plt.ylabel(f"{targetCol} 均值")
         plt.xticks(rotation=30)
         plt.tight_layout()
         plt.show()
@@ -379,7 +381,9 @@ def analyzeFeatureTarget(
         # 2) 箱线图：看中位数、离散程度、异常值差异
         plt.figure(figsize=(8, 4))
         sns.boxplot(x=targetCol, y=numCol, data=numericFrame)
-        plt.title(f"{numCol} by {targetCol}")
+        plt.title(f"{numCol} 按 {targetCol} 分组箱线图", fontsize=14, weight="bold")
+        plt.xlabel(targetCol)
+        plt.ylabel(numCol)
         plt.tight_layout()
         plt.show()
 
@@ -393,7 +397,9 @@ def analyzeFeatureTarget(
             stat="density",
             common_norm=False,
         )
-        plt.title(f"{numCol} distribution by {targetCol}")
+        plt.title(f"{numCol} 按 {targetCol} 分组分布", fontsize=14, weight="bold")
+        plt.xlabel(numCol)
+        plt.ylabel("密度")
         plt.tight_layout()
         plt.show()
 
@@ -401,6 +407,7 @@ def analyzeFeatureTarget(
 def analyzeFeatureRelations(
     dataObj: Data,
     numCols: list[str] | None = None,
+    targetCol: str | None = "Survived",
     threshold: float = 0.7,
 ) -> pd.DataFrame:
     """
@@ -409,6 +416,7 @@ def analyzeFeatureRelations(
     Args:
         dataObj: Data 对象
         numCols: 数值特征列名列表, 如果 None 则自动识别
+        targetCol: 目标变量列名, 自动识别时会排除该列
         threshold: 高相关性阈值, 默认 0.7
 
     Returns:
@@ -416,9 +424,11 @@ def analyzeFeatureRelations(
     """
     data = dataObj.data
 
-    # 自动识别数值特征
+    # 自动识别数值特征，排除目标变量
     if numCols is None:
         numCols = data.select_dtypes(include=[np.number]).columns.tolist()
+        if targetCol and targetCol in numCols:
+            numCols.remove(targetCol)
 
     if len(numCols) < 2:
         print("⚠️ 数值特征少于2个，无法进行相关性分析")
@@ -499,7 +509,9 @@ def generatePreprocessSuggestions(dataObj: Data, targetCol: str = "Survived") ->
                 print(
                     f"  - {col}: 缺失率 {missingRatio:.1f}%，建议删除该列或使用指示变量"
                 )
-            elif dtype in ["object", "category"]:
+            elif dtype in ["object", "string", "category"] or str(dtype).startswith(
+                "string"
+            ):
                 print(
                     f"  - {col}: 缺失率 {missingRatio:.1f}%，建议用众数填充或新建 'Missing' 类别"
                 )
@@ -512,7 +524,9 @@ def generatePreprocessSuggestions(dataObj: Data, targetCol: str = "Survived") ->
 
     # 2. 类别特征编码建议
     print("\n【2. 类别特征编码建议】")
-    catCols = data.select_dtypes(include=["object", "category"]).columns.tolist()
+    catCols = data.select_dtypes(
+        include=["object", "string", "category"]
+    ).columns.tolist()
     if targetCol in catCols:
         catCols.remove(targetCol)
 
@@ -565,53 +579,52 @@ def generatePreprocessSuggestions(dataObj: Data, targetCol: str = "Survived") ->
     print("  - 考虑对 Age 进行分箱处理")
 
 
-if __name__ == "__main__":
-    # 数据路径
-    trainFilepath = os.path.join("datasets", "train.csv")
-    testFilepath = os.path.join("datasets", "test.csv")
+def main(filename: str) -> None:
+    filepath = os.path.join("datasets", filename)
 
-    train = Data(trainFilepath)
-    test = Data(testFilepath)
+    data = Data(filepath)
 
-    # 获取数据的基本信息
-    # train.getAllInfo()
-    # test.getAllInfo()
+    print("数据集基本信息:")
+    data.getAllInfo()
 
-    # 质量检查
-    # train.runAllChecks()
-    # test.runAllChecks()
+    print("\n数据质量检查:")
+    data.runAllChecks()
 
-    # 使用 Plotter 进行可视化
-    # plotter = Plotter(train)
-    # plotter.plotCount("Survived")
-    # plotter.plotCount("Pclass")
-    # plotter.plotCount("Sex")
-    # plotter.plotCount("SibSp")
-    # plotter.plotCount("Parch")
-    # plotter.plotCount("Embarked")
+    print("\n可视化:")
+    plotter = Plotter(data)
+    plotter.plotCount("Survived")
+    plotter.plotCount("Pclass")
+    plotter.plotCount("Sex")
+    plotter.plotCount("SibSp")
+    plotter.plotCount("Parch")
+    plotter.plotCount("Embarked")
 
-    # Cabin 首字母计数示例
-    # train.data["Cabin"] = train.data["Cabin"].str[0].fillna("Unknown")
-    # plotter.plotCount("Cabin")
+    data.data["Cabin"] = data.data["Cabin"].str[0].fillna("Unknown")
+    plotter.plotCount("Cabin")
 
-    # 直方图（可选剔除异常值）
-    # plotter.plotHist("Age", dropOutliers=True)
-    # plotter.plotHist("Fare", dropOutliers=True)
+    # 直方图(可选择是否剔除异常值)
+    plotter.plotHist("Age", dropOutliers=True)
+    plotter.plotHist("Fare", dropOutliers=True)
 
     # 目标变量分析
-    # analyzeTarget(train, targetCol="Survived")
+    analyzeTarget(data, targetCol="Survived")
 
     # 特征与目标关系分析
-    # analyzeFeatureTarget(
-    #     train,
-    #     targetCol="Survived",
-    #     missing="keep",
-    #     catCols=["Pclass", "Sex", "SibSp", "Parch", "Embarked"],
-    #     numCols=["Age", "Fare"],
-    # )
+    analyzeFeatureTarget(
+        data,
+        targetCol="Survived",
+        missing="keep",
+        catCols=["Pclass", "Sex", "SibSp", "Parch", "Embarked"],
+        numCols=["Age", "Fare"],
+    )
 
     # 特征之间关系分析
-    # analyzeFeatureRelations(train, numCols=["Age", "Fare", "SibSp", "Parch"])
+    analyzeFeatureRelations(data, targetCol="Survived")
 
-    # 生成预处理建议
-    # generatePreprocessSuggestions(train, targetCol="Survived")
+    # 默认执行：生成预处理建议
+    generatePreprocessSuggestions(data, targetCol="Survived")
+
+
+if __name__ == "__main__":
+    main("train.csv")
+    # main("test.csv")

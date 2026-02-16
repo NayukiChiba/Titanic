@@ -93,6 +93,9 @@ def fillAge(df: pd.DataFrame, params: FillParams | None = None) -> pd.DataFrame:
         df["Age"] = df.groupby(["Pclass", "Sex"])["Age"].transform(
             lambda x: x.fillna(x.median())
         )
+        # P2 修复：分组中位数为 NaN 时（该组 Age 全缺失），用全局中位数兜底
+        globalMedian = df["Age"].median()
+        df["Age"] = df["Age"].fillna(globalMedian)
     else:
         # 测试集：使用训练集的分组中位数
         def fillWithParams(row):
@@ -539,7 +542,7 @@ def preprocessData(
     df = createFamilySize(df)
     # df = extractCabinLetter(df)
     df = createAgeBin(df)
-    df = createFareBin(df)
+    # df = createFareBin(df)  # P2 修复：FareBin 未被 selectFeatures 使用，移除避免 qcut 报错
 
     # 特征编码
     df = encodeCategorical(df)

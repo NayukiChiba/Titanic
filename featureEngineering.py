@@ -16,8 +16,27 @@
 
 import os
 import sys
+from dataclasses import dataclass, field
 
 import pandas as pd
+
+
+# =============================================================================
+# 填充参数类（P2 修复：存储训练集统计量，测试集复用）
+# =============================================================================
+@dataclass
+class FillParams:
+    """存储从训练集计算的填充参数，供测试集复用"""
+
+    # Age: 按 (Pclass, Sex) 分组的中位数
+    ageMedianByGroup: dict = field(default_factory=dict)
+    # Age: 全局中位数（兜底）
+    ageMedianGlobal: float = 0.0
+    # Embarked: 众数
+    embarkedMode: str = "S"
+    # Fare: 中位数
+    fareMedian: float = 0.0
+
 
 # =============================================================================
 # 第一部分：数据加载
@@ -48,12 +67,13 @@ def loadData(filename: str) -> pd.DataFrame:
 # =============================================================================
 
 
-def fillAge(df: pd.DataFrame) -> pd.DataFrame:
+def fillAge(df: pd.DataFrame, params: FillParams | None = None) -> pd.DataFrame:
     """
     填充 Age 缺失值
 
     Args:
         df: 原始 DataFrame
+        params: 填充参数（测试集传入训练集的参数）
 
     Returns:
         填充后的 DataFrame
@@ -68,19 +88,30 @@ def fillAge(df: pd.DataFrame) -> pd.DataFrame:
         - df['Age'].fillna(value) 填充缺失值
         - df.groupby(['Pclass', 'Sex'])['Age'].transform('median') 分组中位数
     """
-    # 按照Pclass和Sex分组计算Age的中位数
-    df["Age"] = df.groupby(["Pclass", "Sex"])["Age"].transform(
-        lambda x: x.fillna(x.median())
-    )
+    if params is None:
+        # 训练集：按 Pclass 和 Sex 分组计算 Age 的中位数
+        df["Age"] = df.groupby(["Pclass", "Sex"])["Age"].transform(
+            lambda x: x.fillna(x.median())
+        )
+    else:
+        # 测试集：使用训练集的分组中位数
+        def fillWithParams(row):
+            if pd.isna(row["Age"]):
+                key = (row["Pclass"], row["Sex"])
+                return params.ageMedianByGroup.get(key, params.ageMedianGlobal)
+            return row["Age"]
+
+        df["Age"] = df.apply(fillWithParams, axis=1)
     return df
 
 
-def fillEmbarked(df: pd.DataFrame) -> pd.DataFrame:
+def fillEmbarked(df: pd.DataFrame, params: FillParams | None = None) -> pd.DataFrame:
     """
     填充 Embarked 缺失值
 
     Args:
         df: 原始 DataFrame
+        params: 填充参数（测试集传入训练集的参数）
 
     Returns:
         填充后的 DataFrame
@@ -91,23 +122,34 @@ def fillEmbarked(df: pd.DataFrame) -> pd.DataFrame:
         - df['Embarked'].mode()[0] 获取众数
         - df['Embarked'].fillna(value) 填充
     """
-    df["Embarked"] = df["Embarked"].fillna(df["Embarked"].mode()[0])
+    if params is None:
+        # 训练集：用当前数据的众数
+        df["Embarked"] = df["Embarked"].fillna(df["Embarked"].mode()[0])
+    else:
+        # 测试集：使用训练集的众数
+        df["Embarked"] = df["Embarked"].fillna(params.embarkedMode)
     return df
 
 
-def fillFare(df: pd.DataFrame) -> pd.DataFrame:
+def fillFare(df: pd.DataFrame, params: FillParams | None = None) -> pd.DataFrame:
     """
     填充 Fare 缺失值（测试集可能有缺失）
 
     Args:
         df: 原始 DataFrame
+        params: 填充参数（测试集传入训练集的参数）
 
     Returns:
         填充后的 DataFrame
 
     策略：用中位数填充
     """
-    df["Fare"] = df["Fare"].fillna(df["Fare"].median())
+    if params is None:
+        # 训练集：用当前数据的中位数
+        df["Fare"] = df["Fare"].fillna(df["Fare"].median())
+    else:
+        # 测试集：使用训练集的中位数
+        df["Fare"] = df["Fare"].fillna(params.fareMedian)
     return df
 
 
@@ -420,6 +462,11 @@ def selectFeatures(df: pd.DataFrame, isTest: bool = False) -> pd.DataFrame:
         "Embarked_S",
     ]
 
+    # P1 修复：补齐可能缺失的 Embarked 哑变量列
+    for col in ["Embarked_C", "Embarked_Q", "Embarked_S"]:
+        if col not in df.columns:
+            df[col] = 0
+
     return df[features + ["PassengerId"]] if isTest else df[features]
 
 
@@ -428,13 +475,42 @@ def selectFeatures(df: pd.DataFrame, isTest: bool = False) -> pd.DataFrame:
 # =============================================================================
 
 
-def preprocessData(df: pd.DataFrame, isTest: bool = False) -> pd.DataFrame:
+def fitFillParams(df: pd.DataFrame) -> FillParams:
+    """
+    从训练集计算填充参数
+
+    Args:
+        df: 训练集 DataFrame
+
+    Returns:
+        FillParams 对象，包含所有填充参数
+    """
+    params = FillParams()
+
+    # Age: 按 (Pclass, Sex) 分组的中位数
+    ageGrouped = df.groupby(["Pclass", "Sex"])["Age"].median()
+    params.ageMedianByGroup = ageGrouped.to_dict()
+    params.ageMedianGlobal = df["Age"].median()
+
+    # Embarked: 众数
+    params.embarkedMode = df["Embarked"].mode()[0]
+
+    # Fare: 中位数
+    params.fareMedian = df["Fare"].median()
+
+    return params
+
+
+def preprocessData(
+    df: pd.DataFrame, isTest: bool = False, params: FillParams | None = None
+) -> pd.DataFrame:
     """
     完整的数据预处理流水线
 
     Args:
         df: 原始 DataFrame
         isTest: 是否为测试集
+        params: 填充参数（测试集需传入训练集的参数）
 
     Returns:
         处理完成的 DataFrame
@@ -450,9 +526,9 @@ def preprocessData(df: pd.DataFrame, isTest: bool = False) -> pd.DataFrame:
         - 某些参数（如 Age 中位数）应从训练集计算，应用到测试集
     """
     # 缺失值处理
-    df = fillAge(df)
-    df = fillEmbarked(df)
-    df = fillFare(df)
+    df = fillAge(df, params)
+    df = fillEmbarked(df, params)
+    df = fillFare(df, params)
 
     # 特征创建
     df = extractTitle(df)
@@ -476,34 +552,42 @@ def preprocessData(df: pd.DataFrame, isTest: bool = False) -> pd.DataFrame:
 # =============================================================================
 # 第七部分：主函数
 # =============================================================================
-def processAndSave(filename: str, isTest: bool = False) -> pd.DataFrame:
+def processAndSave(
+    filename: str, isTest: bool = False, params: FillParams | None = None
+) -> tuple[pd.DataFrame, FillParams | None]:
     """
     加载、处理并保存单个数据文件
 
     Args:
         filename: 数据文件名（如 "train.csv"）
         isTest: 是否为测试集
+        params: 填充参数（测试集需传入训练集的参数）
 
     Returns:
-        处理完成的 DataFrame
+        (处理完成的 DataFrame, 填充参数)
     """
     # 1. 加载数据
     print(f"\n📂 加载 {filename}...")
     df = loadData(filename)
     print(f"   原始形状: {df.shape}")
 
-    # 2. 预处理
+    # 2. 如果是训练集，先计算填充参数
+    if not isTest:
+        params = fitFillParams(df)
+        print("   ✓ 已计算填充参数")
+
+    # 3. 预处理
     print("⚙️  处理中...")
-    processedDf = preprocessData(df, isTest=isTest)
+    processedDf = preprocessData(df, isTest=isTest, params=params)
     print(f"   处理后形状: {processedDf.shape}")
 
-    # 3. 保存结果
+    # 4. 保存结果
     outputName = filename.replace(".csv", "_processed.csv")
     outputPath = os.path.join("datasets", outputName)
     processedDf.to_csv(outputPath, index=False)
     print(f"💾 已保存: {outputPath}")
 
-    return processedDf
+    return processedDf, params
 
 
 def main():
@@ -514,9 +598,11 @@ def main():
     print("🔧 Titanic 特征工程")
     print("=" * 60)
 
-    # 处理训练集和测试集
-    trainProcessed = processAndSave("train.csv", isTest=False)
-    testProcessed = processAndSave("test.csv", isTest=True)
+    # 处理训练集（同时计算填充参数）
+    trainProcessed, fillParams = processAndSave("train.csv", isTest=False)
+
+    # 处理测试集（复用训练集的填充参数）
+    testProcessed, _ = processAndSave("test.csv", isTest=True, params=fillParams)
 
     # 打印摘要
     print("\n" + "=" * 60)

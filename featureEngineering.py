@@ -98,7 +98,11 @@ def fillAge(df: pd.DataFrame, params: FillParams | None = None) -> pd.DataFrame:
         def fillWithParams(row):
             if pd.isna(row["Age"]):
                 key = (row["Pclass"], row["Sex"])
-                return params.ageMedianByGroup.get(key, params.ageMedianGlobal)
+                groupMedian = params.ageMedianByGroup.get(key)
+                # P2 修复：分组中位数为 NaN 时回退到全局中位数
+                if groupMedian is None or pd.isna(groupMedian):
+                    return params.ageMedianGlobal
+                return groupMedian
             return row["Age"]
 
         df["Age"] = df.apply(fillWithParams, axis=1)

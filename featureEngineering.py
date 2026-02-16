@@ -499,8 +499,9 @@ def fitFillParams(df: pd.DataFrame) -> FillParams:
     params.ageMedianByGroup = ageGrouped.to_dict()
     params.ageMedianGlobal = df["Age"].median()
 
-    # Embarked: 众数
-    params.embarkedMode = df["Embarked"].mode()[0]
+    # Embarked: 众数（P2 修复：mode() 为空时使用默认值 "S"）
+    embarkedModes = df["Embarked"].mode()
+    params.embarkedMode = embarkedModes[0] if len(embarkedModes) > 0 else "S"
 
     # Fare: 中位数
     params.fareMedian = df["Fare"].median()

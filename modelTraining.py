@@ -169,13 +169,10 @@ def createXGBoost(randomState: int = 42) -> Any:
 
     提示：
         - from xgboost import XGBClassifier
-        - 设置 use_label_encoder=False, eval_metric='logloss'
     """
     from xgboost import XGBClassifier
 
-    model = XGBClassifier(
-        use_label_encoder=False, eval_metric="logloss", random_state=randomState
-    )
+    model = XGBClassifier(eval_metric="logloss", random_state=randomState)
     return model
 
 

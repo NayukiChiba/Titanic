@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+import config
+
 # =============================================================================
 # 第一部分：数据加载与划分
 # =============================================================================
@@ -44,8 +46,8 @@ def loadProcessedData(
         - 训练集路径: datasets/train_processed.csv
         - 测试集路径: datasets/test_processed.csv
     """
-    trainFilepath = os.path.join("datasets", trainFilename)
-    testFilepath = os.path.join("datasets", testFilename)
+    trainFilepath = os.path.join(config.DATASETS_DIR, trainFilename)
+    testFilepath = os.path.join(config.DATASETS_DIR, testFilename)
     trainDf = pd.read_csv(trainFilepath)
     testDf = pd.read_csv(testFilepath)
     return trainDf, testDf
@@ -477,6 +479,8 @@ def main():
     # 测试集需要保留 PassengerId 用于提交
     testPassengerIds = testDf["PassengerId"]
     XTest = testDf.drop(columns=["PassengerId"])
+    # 确保测试集特征列与训练集对齐（顺序和列名一致）
+    XTest = XTest.reindex(columns=X.columns, fill_value=0)
     print(f"   特征数: {X.shape[1]}, 样本数: {X.shape[0]}")
 
     # 3. 划分训练集和验证集
@@ -503,26 +507,37 @@ def main():
 
     # 7. 选择最佳模型（按 F1 分数）
     bestModelName = resultsDf["f1"].idxmax()
-    bestModel = trainedModels[bestModelName]
     print(
         f"\n🏆 最佳模型: {bestModelName} (F1={resultsDf.loc[bestModelName, 'f1']:.4f})"
     )
 
-    # 8. 保存最佳模型
-    print("\n💾 保存模型...")
-    os.makedirs("outputs/model", exist_ok=True)
-    saveModel(bestModel, f"outputs/model/{bestModelName}.pkl")
-    print(f"   已保存: outputs/model/{bestModelName}.pkl")
+    # 8. 在全量数据上重训最佳模型（提升最终效果）
+    print(f"\n🔄 在全量数据上重训 {bestModelName}...")
+    bestModel = getModels()[bestModelName]
+    bestModel = trainModel(bestModel, X, y)
 
-    # 9. 在测试集上预测
+    # 9. 保存所有模型
+    print("\n💾 保存模型...")
+    os.makedirs(config.MODEL_DIR, exist_ok=True)
+    for modelName, model in trainedModels.items():
+        modelPath = os.path.join(config.MODEL_DIR, f"{modelName}.pkl")
+        saveModel(model, modelPath)
+        print(f"   已保存: {modelPath}")
+    # 保存全量重训后的最佳模型
+    bestModelPath = os.path.join(config.MODEL_DIR, f"{bestModelName}_final.pkl")
+    saveModel(bestModel, bestModelPath)
+    print(f"   已保存: {bestModelPath} (全量训练)")
+
+    # 10. 在测试集上预测（使用全量重训后的模型）
     print("\n🔮 生成预测...")
     predictions = predict(bestModel, XTest)
 
-    # 10. 生成提交文件
+    # 11. 生成提交文件
     print("\n📝 生成提交文件...")
-    os.makedirs("outputs/predict", exist_ok=True)
-    createSubmission(testPassengerIds, predictions, "outputs/predict/submission.csv")
-    print("   已保存: outputs/predict/submission.csv")
+    os.makedirs(config.PREDICT_DIR, exist_ok=True)
+    submissionPath = os.path.join(config.PREDICT_DIR, config.SUBMISSION_FILE)
+    createSubmission(testPassengerIds, predictions, submissionPath)
+    print(f"   已保存: {submissionPath}")
 
     print("\n" + "=" * 60)
     print("✅ 模型训练完成！")

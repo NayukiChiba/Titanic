@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+import config
+
 
 # =============================================================================
 # 填充参数类（P2 修复：存储训练集统计量，测试集复用）
@@ -53,7 +55,7 @@ def loadData(filename: str) -> pd.DataFrame:
     Returns:
         加载后的 DataFrame
     """
-    filepath = os.path.join("datasets", filename)
+    filepath = os.path.join(config.DATASETS_DIR, filename)
     # 如果没有文件夹或者文件
     if not os.path.exists(filepath):
         print(f"❌ 错误: 数据文件 '{filepath}' 不存在！")
@@ -595,7 +597,7 @@ def processAndSave(
 
     # 4. 保存结果
     outputName = filename.replace(".csv", "_processed.csv")
-    outputPath = os.path.join("datasets", outputName)
+    outputPath = os.path.join(config.DATASETS_DIR, outputName)
     processedDf.to_csv(outputPath, index=False)
     print(f"💾 已保存: {outputPath}")
 

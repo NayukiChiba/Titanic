@@ -1,5 +1,9 @@
+joblib
+lightgbm
 matplotlib
 numpy
 openai
 pandas
+scikit_learn
 seaborn
+xgboost

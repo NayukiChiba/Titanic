@@ -48,6 +48,16 @@ def loadProcessedData(
     """
     trainFilepath = os.path.join(config.DATASETS_DIR, trainFilename)
     testFilepath = os.path.join(config.DATASETS_DIR, testFilename)
+
+    # 检查预处理文件是否存在
+    if not os.path.exists(trainFilepath) or not os.path.exists(testFilepath):
+        print("❌ 错误: 预处理数据文件不存在！")
+        print(
+            f"   缺失: {trainFilepath if not os.path.exists(trainFilepath) else testFilepath}"
+        )
+        print("   请先运行特征工程: python featureEngineering.py")
+        raise FileNotFoundError("预处理数据文件不存在，请先运行 featureEngineering.py")
+
     trainDf = pd.read_csv(trainFilepath)
     testDf = pd.read_csv(testFilepath)
     return trainDf, testDf

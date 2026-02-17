@@ -6,12 +6,15 @@
 
 ```
 Titanic/
-├── datasets/           # 数据集目录
-│   ├── train.csv      # 训练集 (891 条记录)
-│   └── test.csv       # 测试集 (418 条记录)
-├── eda.py             # 探索性数据分析模块
-├── AGENTS.md          # 项目编码规范
-└── README.md          # 项目说明
+├── datasets/                    # 数据集目录
+│   ├── train.csv               # 训练集 (891 条记录)
+│   ├── test.csv                # 测试集 (418 条记录)
+│   ├── train_processed.csv     # 预处理后的训练集
+│   └── test_processed.csv      # 预处理后的测试集
+├── eda.py                       # 探索性数据分析模块
+├── featureEngineering.py        # 特征工程模块
+├── AGENTS.md                    # 项目编码规范
+└── README.md                    # 项目说明
 ```
 
 ## 数据集概览
@@ -228,7 +231,56 @@ $$
 ```bash
 # 运行完整 EDA 流程
 python eda.py
+
+# 运行特征工程（生成预处理后的数据集）
+python featureEngineering.py
 ```
+
+## 特征工程
+
+特征工程模块实现了完整的数据预处理流水线：
+
+### 处理流程
+
+```
+原始数据 → 缺失值填充 → 特征创建 → 特征编码 → 特征选择 → 输出
+```
+
+### 缺失值处理
+
+| 特征 | 策略 |
+|------|------|
+| Age | 按 (Pclass, Sex) 分组中位数填充，兜底用全局中位数 |
+| Embarked | 众数填充 (S) |
+| Fare | 中位数填充 |
+
+### 特征创建
+
+| 新特征 | 来源 | 说明 |
+|--------|------|------|
+| Title | Name | 提取称谓 (Mr, Mrs, Miss, Master, Rare) |
+| FamilySize | SibSp + Parch + 1 | 家庭规模 |
+| IsAlone | FamilySize | 是否独行 (1=是, 0=否) |
+| AgeBin | Age | 年龄分箱 (Child, Teenager, YoungAdult, MiddleAged, Senior) |
+
+### 特征编码
+
+| 特征 | 编码方式 |
+|------|----------|
+| Sex | 二值编码 (female=0, male=1) |
+| Embarked | One-Hot 编码 (Embarked_C, Embarked_Q, Embarked_S) |
+| Title | Label 编码 (Mr=0, Miss=1, Mrs=2, Master=3, Rare=4) |
+
+### 最终特征列表
+
+```python
+['Pclass', 'Sex', 'Age', 'Fare', 'FamilySize', 'IsAlone', 'Title',
+ 'Embarked_C', 'Embarked_Q', 'Embarked_S']
+```
+
+### 训练/测试一致性
+
+模块采用 fit/transform 模式，确保测试集使用训练集的统计量（中位数、众数等），避免数据泄露。
 
 ## 依赖
 
@@ -237,3 +289,11 @@ python eda.py
 - numpy
 - matplotlib
 - seaborn
+
+## 项目进度
+
+- [x] 探索性数据分析 (EDA)
+- [x] 特征工程
+- [ ] 模型训练
+- [ ] 模型评估与调优
+- [ ] 预测与提交

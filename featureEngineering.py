@@ -474,7 +474,11 @@ def selectFeatures(df: pd.DataFrame, isTest: bool = False) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = 0
 
-    return df[features + ["PassengerId"]] if isTest else df[features]
+    # 训练集需保留 Survived 列，测试集需保留 PassengerId 列
+    if isTest:
+        return df[features + ["PassengerId"]]
+    else:
+        return df[features + ["Survived"]]
 
 
 # =============================================================================

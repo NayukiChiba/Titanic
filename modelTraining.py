@@ -120,13 +120,16 @@ def createLogisticRegression() -> Any:
     return model
 
 
-def createRandomForest(nEstimators: int = 100, randomState: int = 42) -> Any:
+def createRandomForest(
+    nEstimators: int = 100, randomState: int = 42, nJobs: int = -1
+) -> Any:
     """
     创建随机森林模型
 
     Args:
         nEstimators: 树的数量，默认 100
         randomState: 随机种子，默认 42
+        nJobs: 并行任务数，默认 -1（使用所有 CPU 核心）
 
     Returns:
         RandomForestClassifier 实例
@@ -136,7 +139,9 @@ def createRandomForest(nEstimators: int = 100, randomState: int = 42) -> Any:
     """
     from sklearn.ensemble import RandomForestClassifier
 
-    model = RandomForestClassifier(n_estimators=nEstimators, random_state=randomState)
+    model = RandomForestClassifier(
+        n_estimators=nEstimators, random_state=randomState, n_jobs=nJobs
+    )
     return model
 
 

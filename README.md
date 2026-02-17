@@ -1,6 +1,6 @@
 # Titanic 生存预测
 
-基于 Kaggle Titanic 数据集的机器学习项目，包含完整的探索性数据分析（EDA）流程。
+基于 Kaggle Titanic 数据集的机器学习项目，包含完整的数据分析、特征工程与模型训练流程。
 
 ## 项目结构
 
@@ -11,8 +11,16 @@ Titanic/
 │   ├── test.csv                # 测试集 (418 条记录)
 │   ├── train_processed.csv     # 预处理后的训练集
 │   └── test_processed.csv      # 预处理后的测试集
+├── outputs/                     # 输出目录
+│   ├── model/                  # 训练好的模型 (.pkl)
+│   └── predict/                # 预测结果与提交文件
+├── config.py                    # 项目配置模块（路径、常量）
 ├── eda.py                       # 探索性数据分析模块
 ├── featureEngineering.py        # 特征工程模块
+├── train.py                     # 模型训练模块
+├── evaluate.py                  # 模型评估模块
+├── predict.py                   # 预测模块
+├── requirements.txt             # Python 依赖
 ├── AGENTS.md                    # 项目编码规范
 └── README.md                    # 项目说明
 ```
@@ -226,15 +234,39 @@ $$
 4. **Age → AgeBin**: 分箱处理 (儿童、青年、中年、老年)
 5. **Fare → FareBin**: 分箱处理或 log 变换（偏度 4.79）
 
-## 使用方法
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
-# 运行完整 EDA 流程
+pip install -r requirements.txt
+```
+
+### 2. 运行流程
+
+```bash
+# 步骤 1: 探索性数据分析（可选，了解数据）
 python eda.py
 
-# 运行特征工程（生成预处理后的数据集）
+# 步骤 2: 特征工程（生成预处理后的数据集）
 python featureEngineering.py
+
+# 步骤 3: 模型训练
+python train.py
+
+# 步骤 4: 模型评估（选择最佳模型）
+python evaluate.py
+
+# 步骤 5: 生成预测
+python predict.py
 ```
+
+### 3. 输出文件
+
+运行完整流程后会生成：
+- `outputs/model/*.pkl` - 训练好的模型文件
+- `outputs/model/*_final.pkl` - 全量重训的最佳模型
+- `outputs/predict/gender_submission.csv` - Kaggle 提交文件
 
 ## 特征工程
 
@@ -282,6 +314,60 @@ python featureEngineering.py
 
 模块采用 fit/transform 模式，确保测试集使用训练集的统计量（中位数、众数等），避免数据泄露。
 
+## 模型训练
+
+模型训练分为三个独立模块，方便调试和重跑：
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| 训练 | `train.py` | 训练所有模型并保存 |
+| 评估 | `evaluate.py` | 评估对比并选择最佳模型 |
+| 预测 | `predict.py` | 加载最佳模型生成预测 |
+
+### 处理流程
+
+```
+train.py          evaluate.py              predict.py
+    │                  │                       │
+    ▼                  ▼                       ▼
+加载数据           加载模型               加载最佳模型
+    │                  │                       │
+    ▼                  ▼                       ▼
+划分数据集         评估所有模型           加载测试集
+    │                  │                       │
+    ▼                  ▼                       ▼
+训练所有模型       选择最佳模型           生成预测
+    │                  │                       │
+    ▼                  ▼                       ▼
+保存模型           全量重训最佳模型       生成提交文件
+```
+
+### 支持的模型
+
+| 模型 | 说明 |
+|------|------|
+| LogisticRegression | 逻辑回归，线性基准模型 |
+| RandomForest | 随机森林，集成学习 |
+| XGBoost | 梯度提升树 |
+| LightGBM | 轻量级梯度提升 |
+
+### 评估指标
+
+| 指标 | 说明 |
+|------|------|
+| Accuracy | 准确率 |
+| Precision | 精确率 |
+| Recall | 召回率 |
+| F1 | F1 分数 |
+| AUC | ROC-AUC 值 |
+
+### 模型选择策略
+
+1. 训练所有模型并在验证集上评估
+2. 按 F1 分数选择最佳模型
+3. 在全量数据上重训最佳模型
+4. 使用重训模型生成最终预测
+
 ## 依赖
 
 - Python 3.10+
@@ -289,11 +375,17 @@ python featureEngineering.py
 - numpy
 - matplotlib
 - seaborn
+- scikit-learn
+- xgboost
+- lightgbm
+- joblib
 
 ## 项目进度
 
 - [x] 探索性数据分析 (EDA)
 - [x] 特征工程
-- [ ] 模型训练
-- [ ] 模型评估与调优
-- [ ] 预测与提交
+- [x] 模型训练
+- [x] 模型评估与对比
+- [x] 预测与提交文件生成
+- [ ] 模型调优（可选）
+- [ ] 模型融合（可选）
